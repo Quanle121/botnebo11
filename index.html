@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Country War Online</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#05081a; font-family:'Segoe UI',sans-serif; color:#fff; overflow:hidden; user-select:none; }
+  canvas { display:block; }
+  .screen { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:radial-gradient(circle,#1a2a5a,#05081a); z-index:10; padding:20px; overflow-y:auto; }
+  .screen.hidden { display:none; }
+  h1 { font-size:42px; background:linear-gradient(90deg,#00d4ff,#ffd700,#ff6b6b); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:15px; text-align:center; }
+  .subtitle { color:#8ba9d0; margin-bottom:22px; text-align:center; }
+  input { padding:12px 15px; border-radius:8px; border:2px solid #2a4a8a; background:#0f1830; color:#fff; font-size:16px; text-align:center; text-transform:uppercase; letter-spacing:3px; width:200px; margin-bottom:15px; }
+  .btn { background:linear-gradient(135deg,#00d4ff,#0066cc); border:none; color:#fff; padding:14px 35px; font-size:16px; font-weight:bold; border-radius:10px; cursor:pointer; margin:6px; box-shadow:0 5px 20px rgba(0,212,255,0.3); }
+  .btn:hover { transform:scale(1.05); }
+  .btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .btn.red { background:linear-gradient(135deg,#ff4444,#cc0000); }
+  .room-code { font-size:44px; font-weight:bold; letter-spacing:8px; color:#ffd700; background:#0f1830; padding:18px 40px; border-radius:12px; border:3px solid #ffd700; margin:20px 0; text-shadow:0 0 20px #ffd700; }
+  .country-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; max-width:700px; max-height:50vh; overflow-y:auto; padding:10px; margin:15px 0; }
+  .cc { background:linear-gradient(135deg,#1e2a4a,#0f1830); border:2px solid #2a3a6a; border-radius:8px; padding:10px; cursor:pointer; text-align:center; transition:0.15s; }
+  .cc:hover { border-color:#00d4ff; transform:translateY(-3px); }
+  .cc.sel { border-color:#ffd700; background:linear-gradient(135deg,#4a3a1a,#2a1f0a); }
+  .flag { font-size:26px; }
+  .cname { font-size:10px; margin-top:3px; }
+  #hud { position:fixed; top:8px; left:8px; right:8px; display:flex; justify-content:space-between; pointer-events:none; z-index:5; gap:8px; }
+  #hud.hidden { display:none; }
+  .ph { background:rgba(10,20,40,0.9); border:2px solid #2a4a8a; border-radius:10px; padding:8px 14px; min-width:200px; }
+  .ph.red { border-color:#8a2a2a; background:rgba(40,10,10,0.9); }
+  .pname { font-weight:bold; font-size:13px; }
+  .pstats { display:flex; gap:12px; font-size:13px; margin-top:3px; }
+  .money { color:#ffd700; font-weight:bold; }
+  .hp { color:#4dff88; font-weight:bold; }
+  .hpbar { height:5px; background:rgba(0,0,0,0.5); border-radius:3px; margin-top:4px; overflow:hidden; }
+  .hpfill { height:100%; background:linear-gradient(90deg,#4dff88,#00d4ff); transition:0.3s; }
+  .hpfill.red { background:linear-gradient(90deg,#ff6b6b,#ff0000); }
+  #shop { position:fixed; bottom:8px; left:50%; transform:translateX(-50%); display:flex; gap:6px; background:rgba(10,20,40,0.95); border:2px solid #2a4a8a; border-radius:12px; padding:8px; z-index:5; flex-wrap:wrap; justify-content:center; max-width:95vw; }
+  #shop.hidden { display:none; }
+  .sb { background:linear-gradient(135deg,#1e3a6a,#0f2040); border:2px solid #3a5a9a; border-radius:8px; color:#fff; padding:6px 10px; cursor:pointer; font-size:11px; min-width:78px; text-align:center; }
+  .sb:hover { border-color:#00d4ff; }
+  .sb.on { border-color:#ffd700; background:linear-gradient(135deg,#4a3a1a,#2a1f0a); }
+  .sb .ic { font-size:18px; display:block; }
+  .sb .c { color:#ffd700; font-size:10px; display:block; margin-top:2px; }
+  #notif { position:fixed; top:90px; left:50%; transform:translateX(-50%); background:rgba(255,50,50,0.95); padding:10px 25px; border-radius:8px; font-weight:bold; z-index:8; opacity:0; transition:0.3s; pointer-events:none; text-align:center; max-width:90vw; }
+  #notif.show { opacity:1; }
+  .waiting { text-align:center; color:#8ba9d0; margin-top:15px; }
+  .pulse { display:inline-block; animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.4;} 50%{opacity:1;} }
+  .big-winner { font-size:54px; font-weight:bold; text-align:center; margin-bottom:20px; }
+</style>
+</head>
+<body>
+
+<div id="screen-menu" class="screen">
+  <h1>⚔️ COUNTRY WAR ONLINE ⚔️</h1>
+  <p class="subtitle">Chiến tranh quốc gia - Nhiều người chơi online</p>
+  <button class="btn" onclick="showCreate()">🏠 TẠO PHÒNG</button>
+  <button class="btn red" onclick="showJoin()">🚪 VÀO PHÒNG</button>
+  <p class="subtitle" style="margin-top:30px;font-size:12px;">Chơi cùng bạn bè: 1 người tạo phòng, gửi mã cho người kia</p>
+</div>
+
+<div id="screen-create" class="screen hidden">
+  <h1>🏠 TẠO PHÒNG</h1>
+  <p class="subtitle">Chọn quốc gia của bạn</p>
+  <div class="country-grid" id="gridCreate"></div>
+  <button class="btn" id="btnCreate" disabled onclick="doCreateRoom()">TẠO PHÒNG</button>
+  <button class="btn red" onclick="backMenu()">◀ QUAY LẠI</button>
+</div>
+
+<div id="screen-room" class="screen hidden">
+  <h1>🎯 PHÒNG CHỜ</h1>
+  <p class="subtitle">Gửi mã này cho bạn bè:</p>
+  <div class="room-code" id="roomCode">----</div>
+  <p class="waiting"><span class="pulse">⏳ Đang chờ đối thủ...</span></p>
+  <p class="subtitle" id="oppInfo" style="margin-top:10px;color:#4dff88;"></p>
+</div>
+
+<div id="screen-join" class="screen hidden">
+  <h1>🚪 VÀO PHÒNG</h1>
+  <p class="subtitle">Nhập mã phòng (4 ký tự)</p>
+  <input id="inputCode" maxlength="4" placeholder="ABCD">
+  <p class="subtitle">Chọn quốc gia của bạn</p>
+  <div class="country-grid" id="gridJoin"></div>
+  <button class="btn" id="btnJoin" disabled onclick="doJoinRoom()">VÀO PHÒNG</button>
+  <button class="btn red" onclick="backMenu()">◀ QUAY LẠI</button>
+</div>
+
+<div id="screen-end" class="screen hidden">
+  <div class="big-winner" id="endText"></div>
+  <button class="btn" onclick="location.reload()">🔄 CHƠI LẠI</button>
+</div>
+
+<div id="hud" class="hidden">
+  <div class="ph">
+    <div class="pname" id="p1name">🔵 Bạn</div>
+    <div class="pstats">
+      <span class="money">💰 $<span id="p1money">10</span></span>
+      <span class="hp">❤️ <span id="p1hp">100</span></span>
+    </div>
+    <div class="hpbar"><div class="hpfill" id="p1hpbar" style="width:100%"></div></div>
+  </div>
+  <div class="ph red">
+    <div class="pname" id="p2name" style="text-align:right">🔴 Đối thủ</div>
+    <div class="pstats" style="justify-content:flex-end">
+      <span class="hp">❤️ <span id="p2hp">100</span></span>
+      <span class="money">💰 $<span id="p2money">10</span></span>
+    </div>
+    <div class="hpbar"><div class="hpfill red" id="p2hpbar" style="width:100%"></div></div>
+  </div>
+</div>
+
+<div id="shop" class="hidden">
+  <button class="sb" data-b="house"><span class="ic">🏠</span>Nhà<span class="c">$50</span></button>
+  <button class="sb" data-b="aa"><span class="ic">🚀</span>Pháo<span class="c">$200</span></button>
+  <button class="sb" data-b="turret"><span class="ic">🔫</span>Trụ<span class="c">$300</span></button>
+  <button class="sb" data-b="missile"><span class="ic">🎯</span>Tên lửa<span class="c">$500</span></button>
+  <button class="sb" data-b="nuke"><span class="ic">☢️</span>Hạt nhân<span class="c">$1 tỷ</span></button>
+</div>
+
+<div id="notif"></div>
+<canvas id="game"></canvas>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = innerWidth, H = innerHeight;
+canvas.width = W; canvas.height = H;
+addEventListener('resize', () => { W = innerWidth; H = innerHeight; canvas.width = W; canvas.height = H; });
+
+const COUNTRIES = [
+  {n:'Việt Nam',f:'🇻🇳'},{n:'Hoa Kỳ',f:'🇺🇸'},{n:'Nga',f:'🇷🇺'},{n:'Trung Quốc',f:'🇨🇳'},
+  {n:'Nhật Bản',f:'🇯🇵'},{n:'Hàn Quốc',f:'🇰🇷'},{n:'Anh',f:'🇬🇧'},{n:'Pháp',f:'🇫🇷'},
+  {n:'Đức',f:'🇩🇪'},{n:'Ấn Độ',f:'🇮🇳'},{n:'Brazil',f:'🇧🇷'},{n:'Úc',f:'🇦🇺'},
+  {n:'Canada',f:'🇨🇦'},{n:'Ý',f:'🇮🇹'},{n:'Tây Ban Nha',f:'🇪🇸'},{n:'Thái Lan',f:'🇹🇭'},
+  {n:'Indonesia',f:'🇮🇩'},{n:'Philippines',f:'🇵🇭'},{n:'Malaysia',f:'🇲🇾'},{n:'Singapore',f:'🇸🇬'},
+  {n:'Israel',f:'🇮🇱'},{n:'Thổ Nhĩ Kỳ',f:'🇹🇷'},{n:'Ai Cập',f:'🇪🇬'},{n:'Ukraine',f:'🇺🇦'},
+];
+
+const BUILDINGS = {
+  house:{name:'Nhà',cost:50,hp:150,size:36,income:3,intv:2500,color:'#4dabf7'},
+  aa:{name:'Pháo',cost:200,hp:150,size:40,range:320,dmg:18,rate:700,color:'#ff922b'},
+  turret:{name:'Trụ',cost:300,hp:200,size:40,range:200,dmg:12,rate:250,color:'#845ef7'},
+  missile:{name:'Tên lửa',cost:500,hp:180,size:44,range:450,dmg:50,rate:1800,color:'#f03e3e'},
+  nuke:{name:'Hạt nhân',cost:1e9,hp:400,size:50,range:2000,dmg:99999,rate:6000,color:'#ffd700'},
+};
+
+let myCountry = null, myRole = null, roomCode = null;
+let G = {
+  buildings: [], projectiles: [], particles: [], stars: [],
+  selected: null, mouse: {x:0,y:0},
+  myMoney: 10, myHp: 100,
+  oppMoney: 10, oppHp: 100,
+  oppCountry: null, running: false, gameTime: 0, middleX: 0,
+  mySide: 'left', nukeShock: null,
+};
+
+function showCreate() {
+  document.getElementById('screen-menu').classList.add('hidden');
+  document.getElementById('screen-create').classList.remove('hidden');
+  buildGrid('gridCreate', c => {
+    myCountry = c;
+    document.getElementById('btnCreate').disabled = false;
+  });
+}
+function showJoin() {
+  document.getElementById('screen-menu').classList.add('hidden');
+  document.getElementById('screen-join').classList.remove('hidden');
+  buildGrid('gridJoin', c => { myCountry = c; checkJoinBtn(); });
+  document.getElementById('inputCode').oninput = checkJoinBtn;
+}
+function checkJoinBtn() {
+  const code = document.getElementById('inputCode').value.trim();
+  document.getElementById('btnJoin').disabled = !(code.length === 4 && myCountry);
+}
+function buildGrid(id, cb) {
+  const g = document.getElementById(id);
+  if (g.dataset.built) return;
+  g.dataset.built = '1';
+  COUNTRIES.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'cc';
+    el.innerHTML = `<div class="flag">${c.f}</div><div class="cname">${c.n}</div>`;
+    el.onclick = () => {
+      g.querySelectorAll('.cc').forEach(x => x.classList.remove('sel'));
+      el.classList.add('sel');
+      cb(c);
+    };
+    g.appendChild(el);
+  });
+}
+function backMenu() {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  document.getElementById('screen-menu').classList.remove('hidden');
+}
+
+function doCreateRoom() { myRole = 'host'; socket.emit('createRoom', { country: myCountry }); }
+function doJoinRoom() {
+  myRole = 'guest';
+  const code = document.getElementById('inputCode').value.trim().toUpperCase();
+  socket.emit('joinRoom', { code, country: myCountry });
+}
+
+socket.on('roomCreated', d => {
+  roomCode = d.code;
+  document.getElementById('screen-create').classList.add('hidden');
+  document.getElementById('screen-room').classList.remove('hidden');
+  document.getElementById('roomCode').textContent = d.code;
+});
+socket.on('joinedRoom', d => {
+  roomCode = d.code;
+  G.oppCountry = d.hostCountry;
+  socket.emit('startGame');
+});
+socket.on('opponentJoined', d => {
+  G.oppCountry = d.country;
+  document.getElementById('oppInfo').textContent = '✅ Đối thủ: ' + d.country.f + ' ' + d.country.n;
+  socket.emit('startGame');
+});
+socket.on('errorMsg', msg => alert(msg));
+socket.on('opponentLeft', () => { alert('Đối thủ đã rời phòng!'); location.reload(); });
+
+socket.on('gameStart', () => {
+  G.mySide = myRole === 'host' ? 'left' : 'right';
+  G.middleX = W / 2;
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('shop').classList.remove('hidden');
+  document.getElementById('p1name').textContent = (G.mySide === 'left' ? '🔵 ' : '🔴 ') + myCountry.f + ' ' + myCountry.n + ' (BẠN)';
+  document.getElementById('p2name').textContent = (G.mySide === 'left' ? '🔴 ' : '🔵 ') + G.oppCountry.f + ' ' + G.oppCountry.n + ' (ĐỐI THỦ)';
+  for (let i = 0; i < 120; i++) G.stars.push({x:Math.random()*W,y:Math.random()*H,s:Math.random()*2,sp:Math.random()*0.3+0.1});
+  // Base
+  const myBaseX = G.mySide === 'left' ? 80 : W - 80;
+  const oppBaseX = G.mySide === 'left' ? W - 80 : 80;
+  G.buildings.push({type:'base',owner:'me',x:myBaseX,y:H-140,hp:300,maxHp:300,size:60,color:'#00d4ff',isBase:true});
+  G.buildings.push({type:'base',owner:'opp',x:oppBaseX,y:H-140,hp:300,maxHp:300,size:60,color:'#ff4444',isBase:true});
+  G.running = true;
+  lastT = performance.now();
+  requestAnimationFrame(loop);
+  notify('⚔️ Trận chiến bắt đầu!');
+});
+
+socket.on('syncState', st => {
+  G.oppMoney = st.money;
+  G.oppHp = st.hp;
+  G.buildings = G.buildings.filter(b => b.owner === 'me');
+  st.buildings.forEach(b => G.buildings.push({...b, owner: 'opp'}));
+  updateHUD();
+});
+
+socket.on('action', a => {
+  if (a.type === 'build') G.buildings.push({...a.data, owner:'opp'});
+  else if (a.type === 'shoot') G.projectiles.push({...a.data, owner:'opp', trail: []});
+  else if (a.type === 'nuke') triggerNukeFX('opp');
+  else if (a.type === 'baseDown') lose();
+});
+
+document.querySelectorAll('.sb').forEach(btn => {
+  btn.onclick = () => {
+    const b = btn.dataset.b;
+    if (G.myMoney < BUILDINGS[b].cost) { notify('❌ Không đủ tiền!'); return; }
+    if (G.selected === b) { G.selected = null; btn.classList.remove('on'); }
+    else {
+      document.querySelectorAll('.sb').forEach(x => x.classList.remove('on'));
+      G.selected = b; btn.classList.add('on');
+    }
+  };
+});
+
+canvas.addEventListener('click', e => {
+  if (!G.selected || !G.running) return;
+  const cost = BUILDINGS[G.selected].cost;
+  if (G.myMoney < cost) { notify('❌ Không đủ!'); return; }
+  if (G.mySide === 'left' && e.clientX > G.middleX - 30) { notify('❌ Chỉ xây bên đất bạn!'); return; }
+  if (G.mySide === 'right' && e.clientX < G.middleX + 30) { notify('❌ Chỉ xây bên đất bạn!'); return; }
+  const data = BUILDINGS[G.selected];
+  for (const b of G.buildings.filter(x => x.owner === 'me')) {
+    if (Math.hypot(b.x - e.clientX, b.y - e.clientY) < data.size) { notify('❌ Chỗ này có rồi!'); return; }
+  }
+  G.myMoney -= cost;
+  const bd = {
+    type: G.selected, x: e.clientX, y: e.clientY,
+    hp: data.hp, maxHp: data.hp, size: data.size, level: 1,
+    lastIncome: 0, lastFire: 0, color: data.color,
+    angle: G.mySide === 'left' ? 0 : Math.PI,
+    isNuke: G.selected === 'nuke',
+  };
+  G.buildings.push({...bd, owner: 'me'});
+  socket.emit('action', { type: 'build', data: bd });
+  G.selected = null;
+  document.querySelectorAll('.sb').forEach(x => x.classList.remove('on'));
+  updateHUD();
+});
+
+canvas.addEventListener('mousemove', e => { G.mouse.x = e.clientX; G.mouse.y = e.clientY; });
+
+let nt;
+function notify(msg) {
+  const el = document.getElementById('notif');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(nt); nt = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+function updateHUD() {
+  const me = G.mySide === 'left' ? 'p1' : 'p2';
+  const opp = G.mySide === 'left' ? 'p2' : 'p1';
+  document.getElementById(me + 'money').textContent = Math.floor(G.myMoney).toLocaleString();
+  document.getElementById(me + 'hp').textContent = Math.max(0, Math.floor(G.myHp));
+  document.getElementById(me + 'hpbar').style.width = Math.max(0, G.myHp) + '%';
+  document.getElementById(opp + 'money').textContent = Math.floor(G.oppMoney).toLocaleString();
+  document.getElementById(opp + 'hp').textContent = Math.max(0, Math.floor(G.oppHp));
+  document.getElementById(opp + 'hpbar').style.width = Math.max(0, G.oppHp) + '%';
+}
+
+let lastT = 0, syncT = 0;
+function loop(t) {
+  if (!G.running) return;
+  const dt = Math.min(t - lastT, 50);
+  lastT = t;
+  G.gameTime += dt;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  syncT += dt;
+  if (syncT > 100) {
+    syncT = 0;
+    socket.emit('syncState', {
+      money: G.myMoney, hp: G.myHp,
+      buildings: G.buildings.filter(b => b.owner === 'me').map(b => ({
+        type: b.type, x: b.x, y: b.y, hp: b.hp, maxHp: b.maxHp,
+        size: b.size, level: b.level, color: b.color, angle: b.angle,
+        isNuke: b.isNuke, isBase: b.isBase,
+      })),
+    });
+  }
+  for (const b of G.buildings) {
+    if (b.owner !== 'me' || b.type === 'house') continue;
+    b.lastIncome = (b.lastIncome || 0) + dt;
+    if (b.lastIncome >= 2500) { b.lastIncome = 0; G.myMoney += 3; }
+  }
+  for (const b of G.buildings) {
+    if (b.owner !== 'me' || b.type === 'house' || b.type === 'base') continue;
+    b.lastFire = (b.lastFire || 0) + dt;
+    const data = BUILDINGS[b.type];
+    if (b.lastFire >= data.rate) {
+      let tgt = null, minD = data.range;
+      for (const tb of G.buildings) {
+        if (tb.owner !== 'opp') continue;
+        const d = Math.hypot(tb.x - b.x, tb.y - b.y);
+        if (d < minD) { minD = d; tgt = tb; }
+      }
+      if (tgt) {
+        b.lastFire = 0;
+        b.angle = Math.atan2(tgt.y - b.y, tgt.x - b.x);
+        if (b.isNuke) doNuke();
+        else {
+          const p = { x: b.x, y: b.y - 10, tx: tgt.x, ty: tgt.y,
+            damage: data.dmg, speed: b.type === 'missile' ? 10 : 7,
+            color: data.color };
+          G.projectiles.push({...p, owner:'me', trail: [], targetRef: tgt});
+          socket.emit('action', { type: 'shoot', data: p });
+        }
+      }
+    }
+  }
+  for (const p of G.projectiles) {
+    if (p.trail.length > 8) p.trail.shift();
+    p.trail.push({x:p.x, y:p.y});
+    let tx = p.tx, ty = p.ty;
+    if (p.targetRef && p.targetRef.hp > 0) { tx = p.targetRef.x; ty = p.targetRef.y; }
+    const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
+    if (d < 12) {
+      if (p.owner === 'me' && p.targetRef && p.targetRef.hp > 0) {
+        p.targetRef.hp -= p.damage;
+        if (p.targetRef.hp <= 0) {
+          if (p.targetRef.isBase) { socket.emit('action', {type:'baseDown'}); win(); }
+          else G.buildings = G.buildings.filter(b => b !== p.targetRef);
+        }
+      }
+      if (p.owner === 'opp') {
+        G.myHp = Math.max(0, G.myHp - p.damage * 0.5);
+        if (G.myHp <= 0) lose();
+      }
+      spawnExplosion(p.x, p.y, p.color);
+      p.dead = true;
+    } else {
+      p.x += dx / d * p.speed * (dt / 16);
+      p.y += dy / d * p.speed * (dt / 16);
+    }
+  }
+  G.projectiles = G.projectiles.filter(p => !p.dead);
+  for (const pt of G.particles) { pt.x += pt.vx * dt/16; pt.y += pt.vy * dt/16; pt.life -= dt; pt.vy += 0.15; }
+  G.particles = G.particles.filter(p => p.life > 0);
+  for (const s of G.stars) { s.y += s.sp * dt/16; if (s.y > H) { s.y = 0; s.x = Math.random() * W; } }
+  updateHUD();
+}
+
+function doNuke() { socket.emit('action', { type: 'nuke' }); triggerNukeFX('me'); }
+function triggerNukeFX(from) {
+  const enemy = from === 'me' ? 'opp' : 'me';
+  G.buildings.filter(b => b.owner === enemy && !b.isBase).forEach(b => spawnExplosion(b.x, b.y, '#ffd700'));
+  G.buildings = G.buildings.filter(b => !(b.owner === enemy && !b.isBase));
+  if (enemy === 'opp') { G.oppHp = Math.max(0, G.oppHp - 80); if (G.oppHp <= 0) win(); }
+  else { G.myHp = Math.max(0, G.myHp - 80); if (G.myHp <= 0) lose(); }
+  notify('☢️ BOM HẠT NHÂN!');
+  G.nukeShock = { r: 0, x: W/2, y: H/2, a: 1 };
+}
+
+function spawnExplosion(x, y, color) {
+  for (let i = 0; i < 18; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = Math.random() * 5 + 1;
+    G.particles.push({x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:400+Math.random()*300, maxLife:700, color: color || '#ff922b', size: Math.random()*4+2});
+  }
+}
+
+function render() {
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#0a0e27'); grd.addColorStop(0.5, '#1a1f3a'); grd.addColorStop(1, '#0f1830');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  for (const s of G.stars) { ctx.globalAlpha = 0.3+Math.random()*0.5; ctx.fillRect(s.x, s.y, s.s, s.s); }
+  ctx.globalAlpha = 1;
+  const mx = G.middleX;
+  ctx.fillStyle = 'rgba(0,150,255,0.05)'; ctx.fillRect(0, 0, mx, H);
+  ctx.fillStyle = 'rgba(255,0,0,0.05)'; ctx.fillRect(mx, 0, W-mx, H);
+  ctx.strokeStyle = 'rgba(255,215,0,0.4)';
+  ctx.setLineDash([12, 8]); ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(mx, 0); ctx.lineTo(mx, H); ctx.stroke();
+  ctx.setLineDash([]);
+  const gGrd = ctx.createLinearGradient(0, H-90, 0, H);
+  gGrd.addColorStop(0, '#2a1810'); gGrd.addColorStop(1, '#1a0f08');
+  ctx.fillStyle = gGrd; ctx.fillRect(0, H-90, W, 90);
+  for (const b of G.buildings) drawBuilding(b);
+  for (const p of G.projectiles) {
+    for (let i = 0; i < p.trail.length; i++) {
+      const t = p.trail[i];
+      ctx.globalAlpha = i/p.trail.length * 0.5;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = p.color;
+    ctx.shadowBlur = 12; ctx.shadowColor = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  for (const pt of G.particles) {
+    ctx.globalAlpha = pt.life/pt.maxLife;
+    ctx.fillStyle = pt.color;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (G.selected && G.running) {
+    const d = BUILDINGS[G.selected];
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = d.color;
+    ctx.beginPath(); ctx.arc(G.mouse.x, G.mouse.y, d.size/2, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = d.color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(G.mouse.x, G.mouse.y, d.size/2, 0, Math.PI*2); ctx.stroke();
+    if (d.range) { ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(G.mouse.x, G.mouse.y, d.range, 0, Math.PI*2); ctx.stroke(); ctx.globalAlpha = 1; }
+  }
+  if (G.nukeShock) {
+    const s = G.nukeShock;
+    s.r += 22; s.a -= 0.015;
+    if (s.a <= 0) G.nukeShock = null;
+    else {
+      ctx.strokeStyle = `rgba(255,215,0,${s.a})`; ctx.lineWidth = 18;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,100,0,${s.a*0.7})`; ctx.lineWidth = 10;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r*0.7, 0, Math.PI*2); ctx.stroke();
+    }
+  }
+}
+
+function drawBuilding(b) {
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  const isMine = b.owner === 'me';
+  const c1 = isMine ? b.color : '#8b1a1a';
+  const c2 = isMine ? '#fff' : '#ff8888';
+  if (b.isBase || b.type === 'base') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(0, 25, 40, 12, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = c1;
+    ctx.beginPath();
+    ctx.moveTo(-30, 20); ctx.lineTo(-30, -20); ctx.lineTo(0, -40);
+    ctx.lineTo(30, -20); ctx.lineTo(30, 20); ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = c2; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = c2;
+    ctx.beginPath(); ctx.arc(0, -5, 8, 0, Math.PI*2); ctx.fill();
+    drawHpBar(-35, -55, 70, 6, b.hp/b.maxHp, isMine ? '#4dff88' : '#ff4444');
+  } else if (b.type === 'house') {
+    const h = 30 + (b.level||1) * 6;
+    const w = b.size;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(0, h/2, w/2, 8, 0, 0, Math.PI*2); ctx.fill();
+    const grd = ctx.createLinearGradient(-w/2, -h, w/2, 0);
+    grd.addColorStop(0, isMine ? '#6bb6ff' : '#cc6666');
+    grd.addColorStop(1, isMine ? '#2a5a9a' : '#661a1a');
+    ctx.fillStyle = grd;
+    ctx.fillRect(-w/2, -h, w, h);
+    ctx.fillStyle = isMine ? '#f03e3e' : '#4a0000';
+    ctx.beginPath();
+    ctx.moveTo(-w/2-4, -h); ctx.lineTo(0, -h-14); ctx.lineTo(w/2+4, -h); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(-5, -h + 8, 10, 8);
+    drawHpBar(-w/2, -h-22, w, 4, b.hp/b.maxHp, isMine ? '#4dff88' : '#ff4444');
+  } else {
+    ctx.rotate(b.angle || 0);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.arc(0, 5, b.size/2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.arc(0, 0, b.size/2, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = c2; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = c2;
+    ctx.fillRect(0, -4, b.size*0.8, 8);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(b.x, b.y - b.size/2 - 12);
+    drawHpBar(-b.size/2, 0, b.size, 5, b.hp/b.maxHp, isMine ? '#4dff88' : '#ff4444');
+    return;
+  }
+  ctx.restore();
+}
+
+function drawHpBar(x, y, w, h, ratio, color) {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = color; ctx.fillRect(x, y, w * Math.max(0, ratio), h);
+}
+
+function win() {
+  if (!G.running) return;
+  G.running = false;
+  const el = document.getElementById('endText');
+  el.textContent = '🏆 CHIẾN THẮNG!';
+  el.style.color = '#00d4ff';
+  document.getElementById('screen-end').classList.remove('hidden');
+}
+function lose() {
+  if (!G.running) return;
+  G.running = false;
+  const el = document.getElementById('endText');
+  el.textContent = '💀 THẤT BẠI!';
+  el.style.color = '#ff4444';
+  document.getElementById('screen-end').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
